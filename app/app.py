@@ -1,7 +1,8 @@
 import streamlit as st
 import requests
 import matplotlib.pyplot as plt
-
+import plotly.graph_objects as go
+import logging
 # =====================================================
 # CONFIG
 # =====================================================
@@ -50,7 +51,7 @@ selection = (person, day)
 if st.button("Run prediction"):
     if selection not in DATA_OPTIONS:
         st.warning(
-            f"No demo data available for Person {person}, Day {day}.\n\n"
+            f"No demo data available for {person}, {day}.\n\n"
             "Please select a supported combination."
         )
         st.stop()
@@ -91,27 +92,95 @@ if st.button("Run prediction"):
     else:
         predictions = raw_preds
 
-    # =================================================
-    # PLOT
-    # =================================================
-    plt.style.use("dark_background")
-    fig, ax = plt.subplots()
-    ax.plot(predictions, linewidth=2)
-    ax.set_ylim(0, 1)
-    ax.set_xlabel("Time step")
-    ax.set_ylabel("Hypoglycemia Risk")
-    ax.set_title("Predicted Hypoglycemia Risk")
+    max_risk = max(predictions)
+    risk_percent = int(max_risk * 100)
 
-    st.pyplot(fig)
+    st.metric(
+        label="Max predicted hypoglycemia risk",
+        value=f"{risk_percent}%"
+    )
+
 
     # =================================================
     # MESSAGE
     # =================================================
     max_risk = max(predictions)
-
+    max_risk_index = predictions.index(max_risk)  # Find the index of the maximum risk
     if max_risk < 0.3:
         st.success("Low hypoglycemia risk detected.")
     elif max_risk < 0.6:
         st.warning("Moderate hypoglycemia risk detected.")
     else:
         st.error("High hypoglycemia risk detected!")
+
+        #st.write(f"Maximum risk detected: {max_risk:.2f}")
+
+    # =================================================
+    # PLOT(MATPLOTLIB)
+    # =================================================
+
+    #plt.style.use("dark_background")
+    #fig, ax = plt.subplots(figsize=(10, 6))  # Increase figure size for better readability
+    #ax.plot(predictions, color="blue", linewidth=2, label="Hypoglycemia Risk")
+    #ax.scatter(max_risk_index, max_risk, color="red", label=f"Max Risk: {max_risk:.2f}")
+    #ax.axhline(0.3, color="green", linestyle="--", label="Low Risk Threshold")
+    #ax.axhline(0.6, color="orange", linestyle="--", label="Moderate Risk Threshold")
+    #ax.set_ylim(0, 1)
+    #ax.set_xlabel("Time Step", fontsize=12)
+    #ax.set_ylabel("Hypoglycemia Risk", fontsize=12)
+    #ax.set_title("Predicted Hypoglycemia Risk Over Time", fontsize=14)
+    #ax.grid(True, linestyle="--", alpha=0.7)
+    #ax.legend(loc="upper right", fontsize=10)
+    #st.pyplot(fig)
+#
+    #st.pyplot(fig)
+
+# =================================================
+    # PLOT (PLOTLY)
+    # =================================================
+    fig = go.Figure()
+    # Add predictions line
+    fig.add_trace(go.Scatter(
+        x=list(range(len(predictions))),
+        y=predictions,
+        mode="lines",
+        name="Hypoglycemia Risk",
+        line=dict(color="blue", width=2)
+    ))
+    # Highlight maximum risk point
+    fig.add_trace(go.Scatter(
+        x=[max_risk_index],
+        y=[max_risk],
+        mode="markers",
+        name=f"Max Risk: {max_risk:.2f}",
+        marker=dict(color="red", size=10)
+    ))
+    # Add risk thresholds
+    fig.add_hline(y=0.3, line_dash="dash", line_color="green", name="Low Risk Threshold")
+    fig.add_hline(y=0.6, line_dash="dash", line_color="orange", name="Moderate Risk Threshold")
+    # Customize layout
+    fig.update_layout(
+        title="Predicted Hypoglycemia Risk Over Time",
+        xaxis_title="Time Step",
+        yaxis_title="Hypoglycemia Risk",
+        yaxis=dict(range=[0, 1]),
+        legend=dict(font=dict(size=10)),
+        template="plotly_white"
+    )
+    # Display the plot
+    st.plotly_chart(fig)
+    # Logging for debugging
+    logging.basicConfig(level=logging.INFO)
+    logging.info(response.json())
+# =====================================================
+# CACHED FUNCTION
+# =====================================================
+@st.cache_data
+def fetch_predictions(data_url):
+    response = requests.post(API_URL, json={"url": data_url}, timeout=120)
+    return response.json()["predictions"]
+# =====================================================
+# FOOTER
+# =====================================================
+st.markdown("---")
+st.markdown("Developed by HypoPredict Team")
