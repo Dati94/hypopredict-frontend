@@ -8,13 +8,20 @@ import matplotlib.pyplot as plt
 API_URL = "https://hypopredict-678277177269.europe-west1.run.app/predict_from_url"
 
 # Hidden mapping: what the user selects -> actual data URL
+#DATA_OPTIONS = {
+#    "Person 8 – Day 3": (
+#        "https://drive.google.com/file/d/"
+#        "1rGpElJXOn7-gUVIKGGTlnSWoqWfbqNTB/view?usp=share_link"
+#    )
+#}
 DATA_OPTIONS = {
-    "Person 8 – Day 3": (
+    ('Person 8', 'Day 3'): (
         "https://drive.google.com/file/d/"
         "1rGpElJXOn7-gUVIKGGTlnSWoqWfbqNTB/view?usp=share_link"
     )
+    # Later add:
+    # ('Person 6', 'Day 4'): "https://drive.google.com/file/d/XXXX/view"
 }
-
 # =====================================================
 # PAGE SETUP
 # =====================================================
@@ -23,30 +30,21 @@ st.set_page_config(
     layout="centered"
 )
 
-st.markdown("""
-# Welcome to HypoPredict
-Hypoglycemia risk prediction – we can estimate the risk of dangerously low blood sugar using heart data.
-""")
-
-#st.title("Welcome to HypoPredict")
-#st.write("Hypoglycemia risk prediction – \n we can estimate the risk of dangerously low blood blood sugar only by heart data ")
-
-
+st.title("Welcome to HypoPredict")
+st.write("Hypoglycemia risk prediction – \n we can estimate the risk of dangerously low blood blood sugar only by heart data ")
 
 # =====================================================
 # USER INPUT (NO URL SHOWN)
 # =====================================================
 selection = st.selectbox(
     "Select person and day",
-    options=list(DATA_OPTIONS.keys()),
-    index=0  # Default to the first option
+    options=list(DATA_OPTIONS.keys())
 )
 
 # =====================================================
 # RUN PREDICTION
 # =====================================================
 if st.button("Run prediction"):
-    # Define data_url inside the button block
     data_url = DATA_OPTIONS[selection]
 
     with st.spinner("Predicting..."):
@@ -79,22 +77,17 @@ if st.button("Run prediction"):
         else:
             predictions = raw_preds
 
-        if not predictions:
-            st.error("No predictions returned by the API.")
-            st.stop()
+    # =================================================
+    # PLOT
+    # =================================================
+    fig, ax = plt.subplots()
+    ax.plot(predictions, linewidth=2)
+    ax.set_ylim(0, 1)
+    ax.set_xlabel("Time step")
+    ax.set_ylabel("Hypoglycemia Risk")
+    ax.set_title("Predicted Hypoglycemia Risk")
 
-        # =================================================
-        # PLOT
-        # =================================================
-        #fig, ax = plt.subplots()
-        #ax.plot(predictions, linewidth=2)
-        #ax.set_ylim(0, 1)
-        #ax.set_xlabel("Time step")
-        #ax.set_ylabel("Hypoglycemia Risk")
-        #ax.set_title("Predicted Hypoglycemia Risk")
-        #ax.grid(True)
-
-        #st.pyplot(fig)
+    st.pyplot(fig)
 
         # =================================================
         # MESSAGE
