@@ -30,9 +30,29 @@ st.set_page_config(
     page_title="Welcome to HypoPredict ",
     layout="centered"
 )
+st.markdown(
+    """
+    <h1 style="margin-bottom:0;">
+        🫀 HypoPredict
+        <span style="font-size:0.3em; font-weight:400; color:gray;">
+            &nbsp;<em>Estimate the risk of hypoglycemia</em>
+        </span>
+    </h1>
+    <p style="margin-top:4px;">
+    <em>
+       We estimate the risk of dangerously low blood sugar only by heart data.
+    </em>
+    </p>
+    """,
+    unsafe_allow_html=True
+)
 
-st.title("Welcome to HypoPredict")
-st.write("Hypoglycemia risk prediction – we can estimate the risk of dangerously low blood blood sugar only by heart data ")
+#st.caption("_Estimate the risk of hypoglycemia_")
+#st.markdown(
+#st.title("🧠 HypoPredict")
+#    "*We estimate the risk of dangerously low blood sugar using heart (ECG) data and machine learning.*"
+#)
+
 
 # =====================================================
 # USER INPUT (NO URL SHOWN)
@@ -51,7 +71,7 @@ selection = (person, day)
 if st.button("Run prediction"):
     if selection not in DATA_OPTIONS:
         st.warning(
-            f"No demo data available for {person}, {day}.\n\n"
+            f"ℹ️ Demo data is not available yet for {person}, {day}.\n\n"
             "Please select a supported combination."
         )
         st.stop()
@@ -95,10 +115,7 @@ if st.button("Run prediction"):
     max_risk = max(predictions)
     risk_percent = int(max_risk * 100)
 
-    st.metric(
-        label="Max predicted hypoglycemia risk",
-        value=f"{risk_percent}%"
-    )
+
 
 
     # =================================================
@@ -106,12 +123,6 @@ if st.button("Run prediction"):
     # =================================================
     max_risk = max(predictions)
     max_risk_index = predictions.index(max_risk)  # Find the index of the maximum risk
-    if max_risk < 0.3:
-        st.success("Low hypoglycemia risk detected.")
-    elif max_risk < 0.6:
-        st.warning("Moderate hypoglycemia risk detected.")
-    else:
-        st.error("High hypoglycemia risk detected!")
 
         #st.write(f"Maximum risk detected: {max_risk:.2f}")
 
@@ -169,9 +180,22 @@ if st.button("Run prediction"):
     )
     # Display the plot
     st.plotly_chart(fig)
+    if max_risk < 0.3:
+        st.success("🟢Low hypoglycemia risk detected.")
+    elif max_risk < 0.6:
+        st.warning("🟡Moderate hypoglycemia risk — monitor closely.")
+    else:
+        st.error("🔴High hypoglycemia risk — intervention recommended!")
+
+    st.metric(
+    label="🩸Max predicted hypoglycemia risk",
+    value=f"{risk_percent}%"
+    )
     # Logging for debugging
     logging.basicConfig(level=logging.INFO)
     logging.info(response.json())
+
+
 # =====================================================
 # CACHED FUNCTION
 # =====================================================
@@ -183,4 +207,4 @@ def fetch_predictions(data_url):
 # FOOTER
 # =====================================================
 st.markdown("---")
-st.markdown("Developed by HypoPredict Team")
+st.markdown("🧪 Developed by the HypoPredict Team")
