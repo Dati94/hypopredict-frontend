@@ -1,19 +1,14 @@
 import streamlit as st
 import requests
 import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+import logging
 
 # =====================================================
 # CONFIG
 # =====================================================
 API_URL = "https://hypopredict-678277177269.europe-west1.run.app/predict_from_url"
 
-# Hidden mapping: what the user selects -> actual data URL
-#DATA_OPTIONS = {
-#    "Person 8 – Day 3": (
-#        "https://drive.google.com/file/d/"
-#        "1rGpElJXOn7-gUVIKGGTlnSWoqWfbqNTB/view?usp=share_link"
-#    )
-#}
 DATA_OPTIONS = {
     ('Person 8', 'Day 3'): (
         "https://drive.google.com/file/d/"
@@ -22,23 +17,27 @@ DATA_OPTIONS = {
     # Later add:
     # ('Person 6', 'Day 4'): "https://drive.google.com/file/d/XXXX/view"
 }
+
 # =====================================================
 # PAGE SETUP
 # =====================================================
 st.set_page_config(
-    page_title="Welcome to HypoPredict ",
+    page_title="Welcome to HypoPredict",
     layout="centered"
 )
 
-st.title("Welcome to HypoPredict")
-st.write("Hypoglycemia risk prediction – \n we can estimate the risk of dangerously low blood blood sugar only by heart data ")
+st.markdown("""
+# Welcome to HypoPredict
+Hypoglycemia risk prediction – we can estimate the risk of dangerously low blood sugar using heart data.
+""")
 
 # =====================================================
-# USER INPUT (NO URL SHOWN)
+# USER INPUT
 # =====================================================
 selection = st.selectbox(
     "Select person and day",
-    options=list(DATA_OPTIONS.keys())
+    options=list(DATA_OPTIONS.keys()),
+    index=0  # Default to the first option
 )
 
 # =====================================================
@@ -77,17 +76,9 @@ if st.button("Run prediction"):
         else:
             predictions = raw_preds
 
-    # =================================================
-    # PLOT
-    # =================================================
-    fig, ax = plt.subplots()
-    ax.plot(predictions, linewidth=2)
-    ax.set_ylim(0, 1)
-    ax.set_xlabel("Time step")
-    ax.set_ylabel("Hypoglycemia Risk")
-    ax.set_title("Predicted Hypoglycemia Risk")
-
-    st.pyplot(fig)
+        if not predictions:
+            st.error("No predictions returned by the API.")
+            st.stop()
 
         # =================================================
         # MESSAGE
@@ -105,11 +96,24 @@ if st.button("Run prediction"):
         st.write(f"Maximum risk detected: {max_risk:.2f}")
 
         # =================================================
-        # PLOT
+        # PLOT (MATPLOTLIB)
         # =================================================
-        import plotly.graph_objects as go
+        fig, ax = plt.subplots(figsize=(10, 6))  # Increase figure size for better readability
+        ax.plot(predictions, color="blue", linewidth=2, label="Hypoglycemia Risk")
+        ax.scatter(max_risk_index, max_risk, color="red", label=f"Max Risk: {max_risk:.2f}")
+        ax.axhline(0.3, color="green", linestyle="--", label="Low Risk Threshold")
+        ax.axhline(0.6, color="orange", linestyle="--", label="Moderate Risk Threshold")
+        ax.set_ylim(0, 1)
+        ax.set_xlabel("Time Step", fontsize=12)
+        ax.set_ylabel("Hypoglycemia Risk", fontsize=12)
+        ax.set_title("Predicted Hypoglycemia Risk Over Time", fontsize=14)
+        ax.grid(True, linestyle="--", alpha=0.7)
+        ax.legend(loc="upper right", fontsize=10)
+        st.pyplot(fig)
 
-        # Create Plotly figure
+        # =================================================
+        # PLOT (PLOTLY)
+        # =================================================
         fig = go.Figure()
 
         # Add predictions line
@@ -148,14 +152,19 @@ if st.button("Run prediction"):
         st.plotly_chart(fig)
 
         # Logging for debugging
-        import logging
         logging.basicConfig(level=logging.INFO)
         logging.info(response.json())
 
-
-
-
+# =====================================================
+# CACHED FUNCTION
+# =====================================================
 @st.cache_data
 def fetch_predictions(data_url):
     response = requests.post(API_URL, json={"url": data_url}, timeout=120)
-    return response.json()
+    return response.json()["predictions"]
+
+# =====================================================
+# FOOTER
+# =====================================================
+st.markdown("---")
+st.markdown("Developed by HypoPredict Team")
