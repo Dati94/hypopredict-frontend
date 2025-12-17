@@ -29,10 +29,10 @@ st.write("Hypoglycemia risk prediction – \n we can estimate the risk of danger
 # =====================================================
 # USER INPUT (NO URL SHOWN)
 # =====================================================
-selection = st.selectbox(
-    "Select person and day",
-    options=list(DATA_OPTIONS.keys())
-)
+#selection = st.selectbox(
+#    "Select person and day",
+#    options=list(DATA_OPTIONS.keys())
+#)
 
 # =====================================================
 # RUN PREDICTION
