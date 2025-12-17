@@ -167,4 +167,4 @@ def fetch_predictions(data_url):
 # FOOTER
 # =====================================================
 st.markdown("---")
-st.markdown("Developed by HypoPredict Team")
+st.markdown("Developed by HypoPredict Team!!")
