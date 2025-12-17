@@ -24,7 +24,7 @@ st.set_page_config(
 )
 
 st.title("Welcome to HypoPredict")
-st.write("Hypoglycemia risk prediction – \n we can estimate the risk of dangerously low blood blood sugar only by heat data ")
+st.write("Hypoglycemia risk prediction – \n we can estimate the risk of dangerously low blood blood sugar only by heart data ")
 
 # =====================================================
 # USER INPUT (NO URL SHOWN)
