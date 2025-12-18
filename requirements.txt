@@ -3,3 +3,7 @@ numpy
 pandas
 matplotlib
 plotly
+datetime
+requests
+matplotlib
+logging
