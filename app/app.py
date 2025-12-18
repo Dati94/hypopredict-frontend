@@ -48,13 +48,14 @@ st.markdown("""
         --safe-green: #16a34a;
         --background: #f8fafc;
         --card-bg: #ffffff;
-        --text-primary: #1e293b;
-        --text-secondary: #64748b;
+        --text-primary: #000000; /* Black font for primary text */
+        --text-secondary: #000000; /* Black font for secondary text */
     }
 
     body, .stApp {
         font-family: 'Inter', sans-serif; /* Use Inter font */
         background-color: var(--background);
+        color: var(--text-primary); /* Set default text color to black */
     }
 
     .app-header {
