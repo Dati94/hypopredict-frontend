@@ -367,17 +367,15 @@ def show_select_person_day_page():
             """, unsafe_allow_html=True)
         else:
             st.markdown(f"""
-            <div style="text-align: center; padding: 16px; background-color: #fee2e2; border-radius: 10px; border: 2px solid #dc2626;">
+            <div style="text-align: center; padding: 10px; background-color: #fee2e2; border-radius: 10px; border: 2px solid #dc2626;">
                 <h3 style="color: #991b1b;">🔴 High hypoglycemia risk — intervention recommended!</h3>
             </div>
             """, unsafe_allow_html=True)
+            
+        # Add a space above the graph
+        st.markdown("<div style='margin-top: 40px;'></div>", unsafe_allow_html=True)
 
-        st.markdown(f"""
-        <div style="text-align: center; padding: 16px; margin-top: 16px;">
-            <h3 style="color: #000000;">🩸 Max predicted hypoglycemia risk</h3>
-            <p style="font-size: 2rem; font-weight: bold; color: #000000;">{risk_percent}%</p>
-        </div>
-        """, unsafe_allow_html=True)
+
 
         # Plot the predictions using Plotly
         fig = go.Figure()
@@ -403,10 +401,18 @@ def show_select_person_day_page():
             yaxis_title="Hypoglycemia Risk",
             yaxis=dict(range=[0, 1]),
             legend=dict(font=dict(size=10)),
-            template="plotly_white"
+            template="plotly_white",
+            margin=dict(l=80, r=80, t=80, b=80)  # Add padding around the graph
         )
         st.plotly_chart(fig)
 
+        st.markdown(f"""
+        <div style="text-align: center; padding: 16px; margin-top: 16px;">
+            <h3 style="color: #000000;">🩸 Maximum predicted risk of hypoglycemia</h3>
+            <p style="font-size: 2rem; font-weight: bold; color: #000000;">{risk_percent}%</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
         # Log the response for debugging
         logging.basicConfig(level=logging.INFO)
         logging.info(response.json())
