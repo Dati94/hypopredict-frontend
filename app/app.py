@@ -38,7 +38,9 @@ st.markdown("""
 
 st.markdown("""
 <style>
-    /* Custom color palette */
+    /* Custom font settings */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
     :root {
         --primary-red: #FF4A4A; /* Your group's color */
         --danger-red: #FF4A4A; /* Matching the primary color */
@@ -49,8 +51,12 @@ st.markdown("""
         --text-primary: #1e293b;
         --text-secondary: #64748b;
     }
-    .main { background-color: var(--background); }
-    .stApp { background-color: #f1f5f9; }
+
+    body, .stApp {
+        font-family: 'Inter', sans-serif; /* Use Inter font */
+        background-color: var(--background);
+    }
+
     .app-header {
         background: var(--primary-red); /* Apply the custom color */
         color: white;
@@ -58,25 +64,33 @@ st.markdown("""
         border-radius: 12px;
         margin-bottom: 2rem;
         text-align: center;
+        font-family: 'Inter', sans-serif; /* Ensure consistent font */
     }
+
     .app-header h1 {
         margin: 0;
         font-size: 2rem;
+        font-weight: 700; /* Bold font */
     }
+
     .app-header p {
         margin: 0.5rem 0 0 0;
         opacity: 0.9;
+        font-weight: 400; /* Regular font */
     }
+
     .stButton > button {
         background: var(--primary-red); /* Button color */
         color: white;
         border: none;
         padding: 0.75rem 2rem;
         border-radius: 8px;
-        font-weight: 600;
+        font-weight: 600; /* Semi-bold font */
         width: 100%;
         transition: all 0.2s;
+        font-family: 'Inter', sans-serif; /* Ensure consistent font */
     }
+
     .stButton > button:hover {
         transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(255, 74, 74, 0.4); /* Hover effect */
