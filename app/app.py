@@ -355,25 +355,25 @@ def show_select_person_day_page():
         # Display the maximum risk message
         if max_risk < 0.3:
             st.markdown(f"""
-            <div style="text-align: center; padding: 20px; background-color: #dcfce7; border-radius: 12px; border: 2px solid #16a34a;">
+            <div style="text-align: center; padding: 16px; background-color: #dcfce7; border-radius: 10px; border: 2px solid #16a34a;">
                 <h2 style="color: #166534;">🟢 Low hypoglycemia risk detected.</h2>
             </div>
             """, unsafe_allow_html=True)
         elif max_risk < 0.6:
             st.markdown(f"""
-            <div style="text-align: center; padding: 20px; background-color: #fef3c7; border-radius: 12px; border: 2px solid #f59e0b;">
+            <div style="text-align: center; padding: 16px; background-color: #fef3c7; border-radius: 10px; border: 2px solid #f59e0b;">
                 <h2 style="color: #92400e;">🟡 Moderate hypoglycemia risk — monitor closely.</h2>
             </div>
             """, unsafe_allow_html=True)
         else:
             st.markdown(f"""
-            <div style="text-align: center; padding: 20px; background-color: #fee2e2; border-radius: 12px; border: 2px solid #dc2626;">
-                <h2 style="color: #991b1b;">🔴 High hypoglycemia risk — intervention recommended!</h2>
+            <div style="text-align: center; padding: 16px; background-color: #fee2e2; border-radius: 10px; border: 2px solid #dc2626;">
+                <h3 style="color: #991b1b;">🔴 High hypoglycemia risk — intervention recommended!</h3>
             </div>
             """, unsafe_allow_html=True)
 
         st.markdown(f"""
-        <div style="text-align: center; padding: 20px; margin-top: 20px;">
+        <div style="text-align: center; padding: 16px; margin-top: 16px;">
             <h3 style="color: #000000;">🩸 Max predicted hypoglycemia risk</h3>
             <p style="font-size: 2rem; font-weight: bold; color: #000000;">{risk_percent}%</p>
         </div>
