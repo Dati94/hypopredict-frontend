@@ -6,6 +6,7 @@ import plotly.graph_objects as go
 import logging
 import numpy as np
 import pandas as pd
+from pathlib import Path
 
 st.markdown("""
 <style>
@@ -224,6 +225,13 @@ def create_forecast_chart(series: pd.Series) -> go.Figure:
 # =====================================================
 BASE_URL = "https://hypopredictjesus-678277177269.europe-west1.run.app"
 PERSON_TO_CODE = {"Person 1": 83, "Person 2": 64}
+# Map API codes to pre-rendered Plotly HTML files (relative, no leading slash)
+PERSON_HTML = {
+    83: "plots/8_final.html",  # Person 1
+    64: "plots/6_final.html",  # Person 2
+}
+
+
 
 def _normalize(s: pd.Series) -> pd.Series:
     """Normalize a pandas Series to [0, 1] using min-max scaling."""
@@ -370,6 +378,30 @@ def show_select_person_day_page():
         st.session_state.page = 'forecast'
         st.rerun()
 
+
+def _find_person_plot(code: int):
+    """Resolve the HTML path for a person's extra plot, trying common names/locations."""
+    app_dir = Path(__file__).parent
+    # Preferred mapping (strip any accidental leading slash)
+    preferred = str(PERSON_HTML.get(code, "")).lstrip("/")
+    # Known alternates from your note (8/6 variants)
+    alternates = {
+        83: ["8_final.html", "8.html"],
+        64: ["6_final.html", "6.html"],
+    }.get(code, [])
+    # Build candidate names (de-dup)
+    names = [n for n in [preferred] + alternates if n]
+    seen = set()
+    names = [n for n in names if not (n in seen or seen.add(n))]
+    # Search in app/ and app/plots/
+    folders = [app_dir, app_dir / "plots"]
+    for folder in folders:
+        for name in names:
+            p = folder / name
+            if p.exists():
+                return p
+    return None
+
 def show_forecast_page():
     """Display real-time forecast chart with API data."""
     st.markdown("""
@@ -394,9 +426,6 @@ def show_forecast_page():
         max_risk = series_data.max()
         
         # Display risk level
-        #risk_level, risk_class, risk_text = get_risk_level(current_risk)
-        #st.markdown(f"<div style='text-align: center; padding: 16px; background-color: #fee2e2; border-radius: 10px; border: 2px solid #dc2626;'><h3 style='color: #991b1b;'>{risk_text}</h3></div>", unsafe_allow_html=True)
-        
         risk_level, risk_class, risk_text = get_risk_level(current_risk)
 
         # Define colors based on risk level
@@ -415,7 +444,6 @@ def show_forecast_page():
 
         st.markdown(f"<div style='text-align: center; padding: 16px; background-color: {bg_color}; border-radius: 10px; border: 2px solid {border_color};'><h3 style='color: {text_color};'>{risk_text}</h3></div>", unsafe_allow_html=True)
         
-        
         # Display current and max risk
         col1, col2 = st.columns(2)
         with col1:
@@ -426,6 +454,20 @@ def show_forecast_page():
         # Display forecast chart
         fig = create_forecast_chart(series_data)
         st.plotly_chart(fig, use_container_width=True)
+
+        # Additional per-person pre-rendered Plotly chart
+        try:
+            person_label = st.session_state.selected_person
+            code = PERSON_TO_CODE.get(person_label)
+            plot_path = _find_person_plot(code)
+            if plot_path and plot_path.exists():
+                with open(plot_path, "r", encoding="utf-8") as f:
+                    st.components.v1.html(f.read(), height=600)
+                st.caption("Explore the relationship between ECG features and hypoglycemia risk.")
+            else:
+                st.info("No additional plot found. Place 8_final.html/6_final.html in app/plots or app/.")
+        except Exception as e:
+            st.info(f"Could not load additional plot: {e}")
         
         # Back button
         if st.button("Back to Person Selection"):
