@@ -167,8 +167,8 @@ def get_risk_level(probability):
         return "HIGH", "risk-high", "⚠ High Risk - Consider Action"
 
 
-def create_forecast_chart(data, current_time):
-    """Create the real-time forecast chart"""
+def create_forecast_chart(series: pd.Series) -> go.Figure:
+    """Create the real-time forecast chart from a pandas Series (index=datetime, values in [0,1])."""
     fig = go.Figure()
     
     # Add risk zones as background
@@ -182,8 +182,8 @@ def create_forecast_chart(data, current_time):
     
     # Main probability line
     fig.add_trace(go.Scatter(
-        x=data['time'],
-        y=data['probability'],
+        x=series.index,
+        y=series.values,
         mode='lines+markers',
         name='p(HG in FW)',
         line=dict(color='#dc2626', width=3),
@@ -196,11 +196,6 @@ def create_forecast_chart(data, current_time):
                   annotation_text="High Risk Threshold (50%)", annotation_position="right")
     fig.add_hline(y=0.25, line_dash="dash", line_color="#f59e0b",
                   annotation_text="Moderate Risk (25%)", annotation_position="right")
-    
-    # Current time marker
-    if len(data) > 0:
-        fig.add_vline(x=data['time'].iloc[-1], line_dash="dot", line_color="#2563eb",
-                      annotation_text="Now", annotation_position="top")
     
     fig.update_layout(
         title=dict(
@@ -224,7 +219,56 @@ def create_forecast_chart(data, current_time):
     
     return fig
 
-# filepath: /Users/jenniferdanielonwuchekwa/code/Dati94/hypopredict-frontend/app/app.py
+# =====================================================
+# API helpers
+# =====================================================
+BASE_URL = "https://hypopredictjesus-678277177269.europe-west1.run.app"
+PERSON_TO_CODE = {"Person 1": 83, "Person 2": 64}
+
+def _normalize(s: pd.Series) -> pd.Series:
+    """Normalize a pandas Series to [0, 1] using min-max scaling."""
+    s = s.astype(float)
+    min_v, max_v = s.min(), s.max()
+    if pd.isna(min_v) or pd.isna(max_v) or max_v == min_v:
+        return s.fillna(0.0)
+    return (s - min_v) / (max_v - min_v)
+
+@st.cache_data(ttl=600)
+def fetch_predictions(code: int):
+    """Fetch fusion and cnn predictions, normalize, and create combined series."""
+    url = f"{BASE_URL}/predict_fusion_local_{code}"
+    resp = requests.get(url, timeout=30)
+    resp.raise_for_status()
+    payload = resp.json()
+
+    # Fusion predictions
+    pred_f = pd.Series(payload.get('pred_fusion'))
+    pred_f.index = pd.to_datetime(pred_f.index, errors='coerce')
+    pred_f = _normalize(pred_f.sort_index()).dropna()
+
+    # CNN/LSTM predictions (drop first element per API note)
+    pred_cnn = pd.Series(payload.get('pred_cnn'))[1:]
+    pred_cnn.index = pd.to_datetime(pred_cnn.index, errors='coerce')
+    pred_cnn = _normalize(pred_cnn.sort_index()).dropna()
+
+    # Merge by nearest minute and create combined prediction
+    merged = pd.merge_asof(
+        pred_cnn.to_frame(name='lstm'),
+        pred_f.to_frame(name='fusion'),
+        left_index=True,
+        right_index=True,
+        direction='nearest',
+        tolerance=pd.Timedelta('1min')
+    ).dropna()
+    pred_combined = 0.4 * merged['lstm'] + 0.6 * merged['fusion']
+    pred_combined.name = 'combined'
+
+    return {"fusion": pred_f, "cnn": pred_cnn, "combined": pred_combined}
+
+# =====================================================
+# PAGE FUNCTIONS
+# =====================================================
+
 def show_welcome_page():
     st.markdown("""
     <div class="app-header">
@@ -262,7 +306,6 @@ def show_welcome_page():
             else:
                 st.error("Please enter your name to continue")
                 
-# filepath: /Users/jenniferdanielonwuchekwa/code/Dati94/hypopredict-frontend/app/app.py
 def show_load_data_page():
     st.markdown("""
     <div class="app-header">
@@ -293,126 +336,42 @@ def show_load_data_page():
             st.session_state.page = 'select_person_day'
             st.rerun()
             
-            
 def show_select_person_day_page():
+    """New prediction page with API-driven data and combined forecasts."""
     st.markdown("""
     <div class="app-header">
-        <h1>👤 Select Person and Day</h1>
-        <p>Choose a person and day to load demo data</p>
+        <h1>👤 Select Person and Prediction Model</h1>
+        <p>Choose a person to load real prediction data</p>
     </div>
     """, unsafe_allow_html=True)
     
-    # Dropdowns for selecting person and day
-    person = st.selectbox("Select person", options=['Person 1'])
-    day = st.selectbox("Select day", options=['Day 1', 'Day 2'])
-    selection = (person, day)
+    # Select person
+    person = st.selectbox("Select person", options=list(PERSON_TO_CODE.keys()), index=0)
+    
+    # Select which model to display
+    series_choice = st.radio("Select prediction model", ["Fusion", "CNN", "Combined"], index=0, horizontal=True)
     
     # Run Prediction button
-    if st.button("Run Prediction"):
-        # Validate the selected person and day
-        if selection not in DATA_OPTIONS:
-            st.warning(
-                f"ℹ️ Demo data is not available yet for {person}, {day}.\n\n"
-                "Please select a supported combination."
-            )
-            st.stop()
-
-        # Fetch the data URL for the selected person and day
-        data_url = DATA_OPTIONS[selection]
-
-        # Call the API to fetch predictions
-        with st.spinner("Predicting..."):
+    if st.button("Load and Display Predictions", type="primary"):
+        code = PERSON_TO_CODE[person]
+        
+        # Fetch predictions from API
+        with st.spinner("Fetching predictions from API..."):
             try:
-                response = requests.post(
-                    API_URL,
-                    json={"url": data_url},
-                    timeout=120
-                )
-                response.raise_for_status()  # Raise an error for non-200 responses
-            except requests.exceptions.RequestException as e:
-                st.error(f"API error: {e}")
+                preds = fetch_predictions(code)
+            except Exception as e:
+                st.error(f"Failed to fetch predictions: {e}")
                 st.stop()
+        
+        # Store in session state for display
+        st.session_state.current_predictions = preds
+        st.session_state.selected_person = person
+        st.session_state.selected_series = series_choice.lower()
+        st.session_state.page = 'forecast'
+        st.rerun()
 
-        # Parse the API response
-        data = response.json()
-        if "predictions" not in data:
-            st.error("API response does not contain 'predictions'")
-            st.write(data)
-            st.stop()
-
-        # Normalize predictions to a list of floats
-        raw_preds = data["predictions"]
-        if isinstance(raw_preds[0], list):
-            predictions = [p[-1] for p in raw_preds]
-        else:
-            predictions = raw_preds
-
-        # Calculate the maximum risk
-        max_risk = max(predictions)
-        max_risk_index = predictions.index(max_risk)
-        risk_percent = int(max_risk * 100)
-
-        # Display the maximum risk message
-        if max_risk < 0.3:
-            st.markdown(f"""
-            <div style="text-align: center; padding: 16px; background-color: #dcfce7; border-radius: 10px; border: 2px solid #16a34a;">
-                <h2 style="color: #166534;">🟢 Low hypoglycemia risk detected.</h2>
-            </div>
-            """, unsafe_allow_html=True)
-        elif max_risk < 0.6:
-            st.markdown(f"""
-            <div style="text-align: center; padding: 16px; background-color: #fef3c7; border-radius: 10px; border: 2px solid #f59e0b;">
-                <h2 style="color: #92400e;">🟡 Moderate hypoglycemia risk — monitor closely.</h2>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown(f"""
-            <div style="text-align: center; padding: 16px; background-color: #fee2e2; border-radius: 10px; border: 2px solid #dc2626;">
-                <h3 style="color: #991b1b;">🔴 High hypoglycemia risk — intervention recommended!</h3>
-            </div>
-            """, unsafe_allow_html=True)
-
-        st.markdown(f"""
-        <div style="text-align: center; padding: 16px; margin-top: 16px;">
-            <h3 style="color: #000000;">🩸 Max predicted hypoglycemia risk</h3>
-            <p style="font-size: 2rem; font-weight: bold; color: #000000;">{risk_percent}%</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # Plot the predictions using Plotly
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=list(range(len(predictions))),
-            y=predictions,
-            mode="lines",
-            name="Hypoglycemia Risk",
-            line=dict(color="blue", width=2)
-        ))
-        fig.add_trace(go.Scatter(
-            x=[max_risk_index],
-            y=[max_risk],
-            mode="markers",
-            name=f"Max Risk: {max_risk:.2f}",
-            marker=dict(color="red", size=10)
-        ))
-        fig.add_hline(y=0.3, line_dash="dash", line_color="green", name="Low Risk Threshold")
-        fig.add_hline(y=0.6, line_dash="dash", line_color="orange", name="Moderate Risk Threshold")
-        fig.update_layout(
-            title="Predicted Hypoglycemia Risk Over Time",
-            xaxis_title="Time Step",
-            yaxis_title="Hypoglycemia Risk",
-            yaxis=dict(range=[0, 1]),
-            legend=dict(font=dict(size=10)),
-            template="plotly_white"
-        )
-        st.plotly_chart(fig)
-
-        # Log the response for debugging
-        logging.basicConfig(level=logging.INFO)
-        logging.info(response.json())
-
-# filepath: /Users/jenniferdanielonwuchekwa/code/Dati94/hypopredict-frontend/app/app.py
 def show_forecast_page():
+    """Display real-time forecast chart with API data."""
     st.markdown("""
     <div class="app-header">
         <h1>📈 Real-Time Forecast</h1>
@@ -420,61 +379,72 @@ def show_forecast_page():
     </div>
     """, unsafe_allow_html=True)
     
-    # Display selected person and day for Demo Data
-    if st.session_state.data_source == 'demo':
-        person, day = st.session_state.selection
-        st.markdown(f"### Demo Data: {person}, {day}")
+    # Display selected person and model
+    if hasattr(st.session_state, 'selected_person'):
+        st.markdown(f"### Prediction Data: {st.session_state.selected_person} - {st.session_state.selected_series.title()} Model")
     
-    # Generate simulated ECG features
-    features = generate_simulated_ecg_features()
-    current_prob = calculate_hypoglycemia_probability(features, datetime.now(), st.session_state.prediction_history)
-    st.session_state.prediction_history.append(current_prob)
+    # Retrieve predictions from session state
+    if 'current_predictions' in st.session_state and 'selected_series' in st.session_state:
+        preds = st.session_state.current_predictions
+        key = st.session_state.selected_series
+        series_data = preds[key]
+        
+        # Calculate risk metrics
+        current_risk = series_data.iloc[-1] if len(series_data) > 0 else 0.0
+        max_risk = series_data.max()
+        
+        # Display risk level
+        #risk_level, risk_class, risk_text = get_risk_level(current_risk)
+        #st.markdown(f"<div style='text-align: center; padding: 16px; background-color: #fee2e2; border-radius: 10px; border: 2px solid #dc2626;'><h3 style='color: #991b1b;'>{risk_text}</h3></div>", unsafe_allow_html=True)
+        
+        risk_level, risk_class, risk_text = get_risk_level(current_risk)
 
-    # Display risk level
-    risk_level, risk_class, risk_text = get_risk_level(current_prob)
-    st.markdown(f"<div class='risk-alert {risk_class}'>{risk_text}</div>", unsafe_allow_html=True)
+        # Define colors based on risk level
+        if risk_level == "LOW":
+            bg_color = "#dcfce7"  # Light green
+            border_color = "#16a34a"  # Safe green
+            text_color = "#15803d"  # Dark green
+        elif risk_level == "MEDIUM":
+            bg_color = "#fef3c7"  # Light amber
+            border_color = "#f59e0b"  # Warning amber
+            text_color = "#92400e"  # Dark amber
+        else:  # HIGH
+            bg_color = "#fee2e2"  # Light red
+            border_color = "#dc2626"  # Danger red
+            text_color = "#991b1b"  # Dark red
 
-    # Display forecast chart
-    forecast_data = pd.DataFrame({
-        'time': [datetime.now() - timedelta(minutes=i) for i in range(len(st.session_state.prediction_history))],
-        'probability': st.session_state.prediction_history
-    })
-    fig = create_forecast_chart(forecast_data, datetime.now())
-    st.plotly_chart(fig, use_container_width=True)
-    
-    
-    
+        st.markdown(f"<div style='text-align: center; padding: 16px; background-color: {bg_color}; border-radius: 10px; border: 2px solid {border_color};'><h3 style='color: {text_color};'>{risk_text}</h3></div>", unsafe_allow_html=True)
+        
+        
+        # Display current and max risk
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Current Risk", f"{current_risk:.1%}")
+        with col2:
+            st.metric("Max Risk (24h)", f"{max_risk:.1%}")
+        
+        # Display forecast chart
+        fig = create_forecast_chart(series_data)
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Back button
+        if st.button("Back to Person Selection"):
+            st.session_state.page = 'select_person_day'
+            st.rerun()
+    else:
+        st.warning("No prediction data available. Please select a person and model first.")
+        if st.button("Go Back"):
+            st.session_state.page = 'select_person_day'
+            st.rerun()
+
 # =====================================================
 # CONFIG
 # =====================================================
 API_URL = "https://hypopredict-678277177269.europe-west1.run.app/predict_from_url"
 
-# Hidden mapping: what the user selects -> actual data URL
-#DATA_OPTIONS = {
-#    "Person 8 – Day 3": (
-#        "https://drive.google.com/file/d/"
-#        "1rGpElJXOn7-gUVIKGGTlnSWoqWfbqNTB/view?usp=share_link"
-#    )
-#}
-DATA_OPTIONS = {
-    ("Person 1", "Day 1"): (
-        "https://drive.google.com/file/d/"
-        "1rGpElJXOn7-gUVIKGGTlnSWoqWfbqNTB/view?usp=share_link"
-    ),
-    ("Person 1", "Day 2"): (
-        "https://drive.google.com/file/d/"
-        "1rGpElJXOn7-gUVIKGGTlnSWoqWfbqNTB/view?usp=share_link"
-    ),
-}
 # =====================================================
 # PAGE SETUP
 # =====================================================
-#st.set_page_config(
-#    page_title="Welcome to HypoPredict ",
-#    layout="centered"
-#)
-
-# filepath: /Users/jenniferdanielonwuchekwa/code/Dati94/hypopredict-frontend/app/app.py
 if 'page' not in st.session_state:
     st.session_state.page = 'welcome'
 
@@ -483,39 +453,10 @@ if st.session_state.page == 'welcome':
 elif st.session_state.page == 'load_data':
     show_load_data_page()
 elif st.session_state.page == 'select_person_day':
-    show_select_person_day_page()  # Add this line
+    show_select_person_day_page()
 elif st.session_state.page == 'forecast':
     show_forecast_page()
 
-
-
-
-#st.caption("_Estimate the risk of hypoglycemia_")
-#st.markdown(
-#st.title("🧠 HypoPredict")
-#    "*We estimate the risk of dangerously low blood sugar using heart (ECG) data and machine learning.*"
-#)
-
-
-# =====================================================
-# USER INPUT (NO URL SHOWN)
-# =====================================================
-#selection = st.selectbox(
-#    "Select person and day",
-#    options=list(DATA_OPTIONS.keys())
-#)
-#person = st.selectbox("Select person", options=['Person ' + str(i) for i in range(1, 10)])
-#day = st.selectbox("Select day", options=['Day ' + str(i) for i in range(1, 7)])
-
-#selection = (person, day)
-
-# =====================================================
-# CACHED FUNCTION
-# =====================================================
-@st.cache_data
-def fetch_predictions(data_url):
-    response = requests.post(API_URL, json={"url": data_url}, timeout=120)
-    return response.json()["predictions"]
 # =====================================================
 # FOOTER
 # =====================================================
